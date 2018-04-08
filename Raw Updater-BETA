@@ -1,0 +1,99 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Diagnostics;
+using System.Web;
+using System.IO;
+using System.Threading;
+using System.Runtime.InteropServices;
+using System.Net;
+using System.ComponentModel;
+using System.IO.Compression;
+using Ionic.Zip;
+
+namespace JKnet_3
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+
+            string UpdateFile = @"UpdatedFiles.zip";
+            string UserName = Environment.UserName;
+            string DownloadFolder = System.IO.Directory.GetCurrentDirectory() + @"\Updater\";
+            string updatefilelocation = DownloadFolder + UpdateFile;
+
+            string githubrawurl = System.IO.File.ReadAllText(System.IO.Directory.GetCurrentDirectory() + @"\Updater\Configs\Github-Raw-url.txt");
+            string githuburl = System.IO.File.ReadAllText(System.IO.Directory.GetCurrentDirectory() + @"\Updater\Configs\Github-url.txt");
+            string ProgramFolderName = System.IO.File.ReadAllText(System.IO.Directory.GetCurrentDirectory() + @"\Updater\Configs\Program-Folder-Name.txt");
+
+            string currentversion = System.IO.File.ReadAllText(System.IO.Directory.GetCurrentDirectory() + @"\Updater\CurrentVersion.txt");
+
+
+            WebClient client = new WebClient(); // Creates a webclient
+            Console.Write("checking server version");
+            string serverversion = client.DownloadString(githubrawurl);
+
+            if (serverversion != currentversion)
+            {
+
+                Console.Write("Program Already Up To Date");
+
+            }
+            else
+            {
+                Console.Write("Deleting Old Update Files");
+
+                Directory.CreateDirectory(System.IO.Directory.GetCurrentDirectory() + @"\Updater\MasterFolder\");
+                foreach (var file in Directory.GetFiles(System.IO.Directory.GetCurrentDirectory() + @"\Updater\MasterFolder\"))
+                {
+                    File.Delete(file);
+
+                }
+                System.IO.File.WriteAllText(System.IO.Directory.GetCurrentDirectory() + @"\Updater\CurrentVersion.txt", serverversion);
+                // download update file
+                Console.Write("downloading update file");
+                client.DownloadFileCompleted += new AsyncCompletedEventHandler(Completed);      // Uses the Event Handler to check whether the download is complete
+                client.DownloadFile(new Uri(githuburl + "/archive/master.zip"), updatefilelocation);
+
+                void Completed(object sender, AsyncCompletedEventArgs e)
+                {
+                    Console.Write("update file downloaded");
+                    Console.WriteLine();
+
+                  
+                }
+
+
+                string sourcepath = System.IO.Directory.GetCurrentDirectory() + @"\Updater\MasterFolder\";
+                string targetpath = System.IO.Directory.GetCurrentDirectory() + @"\" + ProgramFolderName;
+
+
+                void Copy(string sourceDir, string targetDir)
+                {
+                    Directory.CreateDirectory(targetDir);
+
+                    foreach (var file in Directory.GetFiles(targetpath))
+                        File.Delete(file);
+
+                    foreach (var file in Directory.GetFiles(sourceDir))
+                        File.Copy(file, Path.Combine(targetDir, Path.GetFileName(file)));
+
+                    foreach (var directory in Directory.GetDirectories(sourceDir))
+                        Copy(directory, Path.Combine(targetDir, Path.GetFileName(directory)));
+                }
+
+                Copy(sourcepath, targetpath);
+
+
+
+                Console.Write(System.IO.Directory.GetCurrentDirectory());
+                Thread.Sleep(10000);
+
+            }
+        }
+    }
+}
+
