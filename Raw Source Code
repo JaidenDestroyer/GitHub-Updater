@@ -1,0 +1,139 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.IO.Compression;
+using System.Net;
+using System.IO;
+using System.Threading;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Diagnostics;
+using IniParser;
+using IniParser.Model;
+
+namespace Github_Updater
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            // get the most used folder locations
+            string UpdaterFolderLoc = System.IO.Directory.GetCurrentDirectory() + @"\Updater\";
+            string ConfigFolderLoc =  System.IO.Directory.GetCurrentDirectory() + @"\Updater\Configs\";
+
+            // Create New Parser
+            var parser = new FileIniDataParser();
+            IniData data = parser.ReadFile(ConfigFolderLoc + @"Github-Settings.ini");
+
+            string githuburl =           data["Github Settings"]["GithubURL"];        // Read The githuburl.ini file and put text in string
+            string githubrawurl =        data["Github Settings"]["ServerversionURL"]; // Read The githubrawurl.ini file and put text in string
+            string ProgramFolderName =   data["Github Settings"]["ProgramName"];      // Read The programname.ini file and put text in string
+
+
+
+            // get the current version
+            string currentversion = System.IO.File.ReadAllText(UpdaterFolderLoc + @"\CurrentVersion.txt");
+
+            // get the server version
+            WebClient client = new WebClient();                          // Creates a webclient
+            Console.Write("checking server version");                    // Write the current action to the console
+            Console.WriteLine();
+            Console.Write(githuburl);
+            string serverversion = client.DownloadString(githubrawurl);  // Download the raw html of the url
+
+            // checks if the current version is the same as the latest version
+            if (serverversion == currentversion)
+            {
+                // Do Stuff If Program Is Up To Date
+                Console.Write("Program Is Already Up To Date");
+                Console.WriteLine();
+            }
+            else
+            {
+                // Do Stuff If Program Is Not Up To Date
+
+                // Create File For The Programs Files To Be Moved To
+                Directory.CreateDirectory(System.IO.Directory.GetCurrentDirectory() + @"\" + ProgramFolderName);
+
+
+                // delete all files in the progams folder
+                foreach (var file2 in Directory.GetFiles(System.IO.Directory.GetCurrentDirectory() + @"\" + ProgramFolderName))
+                {
+                    File.Delete(file2);
+
+                }
+
+                // delete all Folders in Program Files Folder
+                foreach (var subDir in new DirectoryInfo(UpdaterFolderLoc + @"Program Files\").GetDirectories())
+                {
+                    subDir.Delete(true);
+                }
+
+
+                // download update file
+                Console.Write("downloading update file");
+                Console.WriteLine();
+                client.DownloadFileCompleted += new AsyncCompletedEventHandler(Completed);                                           // Uses the Event Handler to check whether the download is complete
+                client.DownloadFile(new Uri(githuburl + "/archive/master.zip"), UpdaterFolderLoc + @"Program Files\UpdateFile.zip"); // Download The File From The URL
+                
+                void Completed(object sender, AsyncCompletedEventArgs e)
+                {
+                    // Do Stuff Once The Update File Is Downloaded 
+                    Console.Write("update file downloaded");
+                    Console.WriteLine();
+
+                }
+
+                // Extract The Downloaded Zip File To The Program Files Folder
+                Console.Write("update file downloaded");
+                Console.WriteLine();
+                ZipFile.ExtractToDirectory(UpdaterFolderLoc + @"Program Files\UpdateFile.zip", UpdaterFolderLoc + @"Program Files\ExtractedFolder\");
+
+                // Get the name of the extracted folder
+                string path = UpdaterFolderLoc + @"Program Files\ExtractedFolder\";
+
+
+                // Create New Parser
+                string dataINI = ConfigFolderLoc + @"Data.ini"; // Make The Data.ini File String
+                var parser2 = new FileIniDataParser();
+                IniData data2 = parser2.ReadFile(dataINI);
+
+                foreach (string s in Directory.GetDirectories(path))
+                {
+                   
+                    string ExtractedFolder = s.Remove(0, path.Length);
+
+                    // Write The Data To A ini File
+                    data2["Data"]["ExtractedZipName"] = ExtractedFolder;
+                    parser2.WriteFile(ConfigFolderLoc + @"Data.ini", data2);
+
+                }
+
+                // Read The Extracted Zip Name From The Data.ini File
+                string ExtractedZipFolder = data2["Data"]["ExtractedZipName"];    
+
+
+                // Copy all the extracted files to the new programs folder
+                void Copy(string sourceDir, string targetDir)
+                {
+                    Directory.CreateDirectory(targetDir);
+
+                    foreach (var file in Directory.GetFiles(sourceDir))
+                        File.Copy(file, Path.Combine(targetDir, Path.GetFileName(file)));
+
+                    foreach (var directory in Directory.GetDirectories(sourceDir))
+                        Copy(directory, Path.Combine(targetDir, Path.GetFileName(directory)));
+                }
+
+                // Start The Copy Function
+                Copy(UpdaterFolderLoc + @"Program Files\ExtractedFolder\" + ExtractedZipFolder, System.IO.Directory.GetCurrentDirectory() + @"\" + ProgramFolderName);
+
+                // Update The CurrentVersion
+                System.IO.File.WriteAllText(UpdaterFolderLoc + @"\CurrentVersion.txt", serverversion);
+            }
+
+        }
+    }
+}
